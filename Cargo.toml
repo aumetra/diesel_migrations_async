@@ -32,6 +32,10 @@ default-features = false
 version = "~0.3.0"
 default-features = false
 
+[dependencies.tokio]
+version = "~1.28.2"
+features = ["io-util", "sync"]
+
 [features]
 default = []
 postgres = ["diesel-async/postgres"]

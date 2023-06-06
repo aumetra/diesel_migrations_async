@@ -9,9 +9,9 @@ use diesel::{dsl, ExpressionMethods, Insertable, QueryDsl, QueryResult};
 use diesel_async::methods::{ExecuteDsl, LoadQuery};
 use diesel_async::scoped_futures::{ScopedBoxFuture, ScopedFutureExt};
 use diesel_async::{AsyncConnection, RunQueryDsl};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Write;
+use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncWrite, sync::Mutex};
 
 use crate::errors::MigrationError;
 use crate::{AsyncMigration, AsyncMigrationConnection, AsyncMigrationSource};
@@ -24,8 +24,8 @@ diesel::table! {
 }
 
 /// A migration harness is an entity which applies migration to an existing database
-#[async_trait(?Send)]
-pub trait MigrationHarness<DB: Backend> {
+#[async_trait]
+pub trait MigrationHarness<DB: Backend>: Send {
     /// Checks if the database represented by the current harness has unapplied migrations
     async fn has_pending_migration<S: AsyncMigrationSource<DB>>(
         &mut self,
@@ -217,7 +217,7 @@ where
     .scope_boxed()
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'b, C, DB> MigrationHarness<DB> for C
 where
     DB: Backend,
@@ -285,7 +285,7 @@ where
 /// into some output for each applied/reverted migration
 pub struct HarnessWithOutput<'a, C, W> {
     connection: &'a mut C,
-    output: RefCell<W>,
+    output: Mutex<W>,
 }
 
 impl<'a, C, W> HarnessWithOutput<'a, C, W> {
@@ -294,11 +294,11 @@ impl<'a, C, W> HarnessWithOutput<'a, C, W> {
     where
         C: MigrationHarness<DB>,
         DB: Backend,
-        W: Write,
+        W: AsyncWrite,
     {
         Self {
             connection: harness,
-            output: RefCell::new(output),
+            output: Mutex::new(output),
         }
     }
 }
@@ -312,15 +312,15 @@ impl<'a, C> HarnessWithOutput<'a, C, std::io::Stdout> {
     {
         Self {
             connection: harness,
-            output: RefCell::new(std::io::stdout()),
+            output: Mutex::new(std::io::stdout()),
         }
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, C, W, DB> MigrationHarness<DB> for HarnessWithOutput<'a, C, W>
 where
-    W: Write,
+    W: AsyncWrite + Send + Unpin,
     C: MigrationHarness<DB>,
     DB: Backend,
 {
@@ -329,8 +329,9 @@ where
         migration: &dyn AsyncMigration<DB>,
     ) -> Result<MigrationVersion<'static>> {
         if migration.name().version() != MigrationVersion::from("00000000000000") {
-            let mut output = self.output.try_borrow_mut()?;
-            writeln!(output, "Running migration {}", migration.name())?;
+            let mut output = self.output.lock().await;
+            let msg = format!("Running migration {}\n", migration.name());
+            output.write_all(msg.as_bytes()).await?;
         }
         self.connection.run_migration(migration).await
     }
@@ -340,8 +341,9 @@ where
         migration: &dyn AsyncMigration<DB>,
     ) -> Result<MigrationVersion<'static>> {
         if migration.name().version() != MigrationVersion::from("00000000000000") {
-            let mut output = self.output.try_borrow_mut()?;
-            writeln!(output, "Rolling back migration {}", migration.name())?;
+            let mut output = self.output.lock().await;
+            let msg = format!("Rolling back migration {}\n", migration.name());
+            output.write_all(msg.as_bytes()).await?;
         }
         self.connection.revert_migration(migration).await
     }

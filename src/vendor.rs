@@ -101,7 +101,7 @@ impl<'a, DB: Backend> AsyncMigration<DB> for &'a dyn AsyncMigration<DB> {
 /// Vendored async version of Diesels `[MigrationSource](::diesel::migration::MigrationSource)`
 /// A migration source is an entity that can be used
 /// to receive a number of migrations from.
-pub trait AsyncMigrationSource<DB: Backend> {
+pub trait AsyncMigrationSource<DB: Backend>: Send {
     /// Get a list of migrations associated with this
     /// migration soucre.
     fn migrations(&self) -> Result<Vec<Box<dyn AsyncMigration<DB>>>>;
