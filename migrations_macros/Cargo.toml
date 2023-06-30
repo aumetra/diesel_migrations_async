@@ -16,7 +16,7 @@ version = "~0.1.0"
 path = "../migrations_internals"
 
 [dev-dependencies]
-tempfile = "3.5.0"
+tempfile = "3.6.0"
 dotenvy = "0.15"
 cfg-if = "1.0.0"
 
