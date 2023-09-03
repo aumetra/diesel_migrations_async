@@ -19,21 +19,21 @@ path = "migrations_macros"
 [dev-dependencies]
 dotenvy = "0.15"
 cfg-if = "1.0.0"
-tempfile = "3.6"
+tempfile = "3.8"
 
 [dependencies.async-trait]
-version = "0.1.68"
+version = "0.1.73"
 
 [dependencies.diesel]
-version = "~2.1.0"
+version = "~2.1.1"
 default-features = false
 
 [dependencies.diesel-async]
-version = "~0.3.1"
+version = "~0.4.1"
 default-features = false
 
 [dependencies.tokio]
-version = "1.29.1"
+version = "1.32.0"
 features = ["io-util", "sync"]
 
 [features]
